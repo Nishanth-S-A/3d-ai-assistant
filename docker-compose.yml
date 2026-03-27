@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   ollama:
     build: ./ollama
@@ -7,13 +5,6 @@ services:
     environment:
       - OLLAMA_ORIGINS="*"
       - OLLAMA_HOST=0.0.0.0 # Critical for cross-container communication
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     volumes:
       - ollama_storage:/root/.ollama
     restart: unless-stopped
