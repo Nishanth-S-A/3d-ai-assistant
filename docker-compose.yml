@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  ollama:
+    build: ./ollama
+    container_name: ollama-container
+    environment:
+      - OLLAMA_ORIGINS="*"
+      - OLLAMA_HOST=0.0.0.0 # Critical for cross-container communication
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ollama_storage:/root/.ollama
+    restart: unless-stopped
+
+  assistant-ui:
+    build: ./frontend
+    container_name: assistant-ui
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_OLLAMA_URL=http://ollama:11434
+      - VITE_OLLAMA_MODEL=llama3.2
+    volumes:
+      - ./frontend:/app  # <--- THIS LINE IS THE MAGIC TRICK
+      - /app/node_modules # Prevents local node_modules from overriding the container's
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_storage:
