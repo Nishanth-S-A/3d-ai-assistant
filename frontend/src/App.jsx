@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import Scene from './components/Scene'
 import ChatBox from './components/ChatBox'
 import { useOllama } from './hooks/useOllama'
@@ -20,20 +20,46 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const { ask, loading } = useOllama()
 
+  const [currentAction, setCurrentAction] = useState('idle')
+  const lastInteractionRef = useRef(Date.now())
+
   const assistantName = import.meta.env.VITE_ASSISTANT_NAME || 'Master Roshi'
 
   useEffect(() => {
     localStorage.setItem('bond_chats', JSON.stringify(sessions))
   }, [sessions])
 
+  useEffect(() => {
+    const idleInterval = setInterval(() => {
+      // Occasional clapping when bored (15 seconds of inactivity)
+      if (Date.now() - lastInteractionRef.current > 15000 && currentAction === 'idle' && !loading) {
+        setCurrentAction('clapping')
+        setTimeout(() => {
+          setCurrentAction('idle')
+          lastInteractionRef.current = Date.now() // Reset after clapping
+        }, 2500)
+      }
+    }, 1000)
+    return () => clearInterval(idleInterval)
+  }, [currentAction, loading])
+
   const activeSession = sessions.find((s) => s.id === activeSessionId)
   const messages = activeSession ? activeSession.messages : []
 
   const createNewChat = () => {
+    lastInteractionRef.current = Date.now()
     const newSession = { id: Date.now(), title: 'New Chat', messages: [] }
     setSessions((prev) => [newSession, ...prev])
     setActiveSessionId(newSession.id)
     setIsSidebarOpen(false)
+
+    setCurrentAction('stand')
+    setTimeout(() => {
+      setCurrentAction('entry')
+      setTimeout(() => {
+        setCurrentAction('idle')
+      }, 2500)
+    }, 1500)
   }
 
   const deleteChat = (e, idToRemove) => {
@@ -57,6 +83,28 @@ export default function App() {
   }
 
   const handleSendMessage = async (userInput) => {
+    lastInteractionRef.current = Date.now()
+
+    const lowerInput = userInput.toLowerCase()
+    let actionToPlay = 'talking'
+    
+    if (/(hi|hello|hey|bye|greetings)/.test(lowerInput)) {
+      actionToPlay = 'waving'
+    } else if (/(motivat|cheer|inspire|encourage|you got this)/.test(lowerInput)) {
+      actionToPlay = 'cheering'
+    } else if (/(correct|good job|nice|well done|awesome|excellent)/.test(lowerInput)) {
+      actionToPlay = 'clapping'
+    }
+
+    setCurrentAction(actionToPlay)
+    
+    // If not naturally talking, revert to talking after the special animation finishes
+    if (actionToPlay !== 'talking') {
+      setTimeout(() => {
+        setCurrentAction('talking')
+      }, 2500)
+    }
+
     const sessionIdAtSend = activeSessionId
     const assistantMessageId = crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random()
 
@@ -154,10 +202,13 @@ You've got to pace yourself. If you just stare at the mountain, you'll get tired
     ]
 
     const response = await ask(messagesToSend, (partialText) => {
+      lastInteractionRef.current = Date.now()
       updateStreamingAssistant(sessionIdAtSend, assistantMessageId, partialText)
     })
 
     updateStreamingAssistant(sessionIdAtSend, assistantMessageId, response)
+    setCurrentAction('idle')
+    lastInteractionRef.current = Date.now()
   }
 
   useEffect(() => {
@@ -205,7 +256,7 @@ You've got to pace yourself. If you just stare at the mountain, you'll get tired
       </div>
 
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
-        <Scene isThinking={loading} />
+        <Scene currentAction={currentAction} isThinking={loading} />
       </div>
 
       <div style={{ position: 'relative', zIndex: 100, width: '100%', height: '100%', pointerEvents: 'none' }}>
