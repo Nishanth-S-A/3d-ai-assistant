@@ -7,27 +7,40 @@ export default function Assistant({ isThinking }) {
   const { actions } = useAnimations(animations, scene)
 
   const { idleAnim, talkAnim } = useMemo(() => {
-    const actionValues = Object.values(actions || {})
-    const idle = actions?.idle || actions?.Idle || actionValues.find((a) => a?._clip?.name?.toLowerCase() === 'idle')
-    const talking =
-      actions?.talking ||
-      actions?.Talking ||
-      actionValues.find((a) => a?._clip?.name?.toLowerCase() === 'talking')
+    if (!actions || Object.keys(actions).length === 0) return { idleAnim: null, talkAnim: null }
+
+    const actionValues = Object.values(actions)
+    
+    // Improved matching logic
+    const findAnim = (patterns) => {
+      // 1. Try exact match from predefined names
+      for (const p of patterns) {
+        if (actions[p]) return actions[p]
+      }
+      // 2. Try case-insensitive substring match
+      return actionValues.find(a => 
+        patterns.some(p => a._clip.name.toLowerCase().includes(p.toLowerCase()))
+      )
+    }
+
+    const idle = findAnim(['idle', 'wait', 'stay'])
+    const talking = findAnim(['talking', 'speak', 'talk', 'mouth'])
 
     return { idleAnim: idle, talkAnim: talking }
   }, [actions])
 
   useEffect(() => {
-    if (!idleAnim && !talkAnim) {
-      return
+    if (isThinking) {
+      idleAnim?.fadeOut(0.3)
+      talkAnim?.reset().fadeIn(0.3).play()
+    } else {
+      talkAnim?.fadeOut(0.3)
+      idleAnim?.reset().fadeIn(0.3).play()
     }
 
-    if (isThinking) {
-      idleAnim?.fadeOut(0.2)
-      talkAnim?.reset().fadeIn(0.2).play()
-    } else {
-      talkAnim?.fadeOut(0.2)
-      idleAnim?.reset().fadeIn(0.2).play()
+    return () => {
+      idleAnim?.stop()
+      talkAnim?.stop()
     }
   }, [isThinking, idleAnim, talkAnim])
 
